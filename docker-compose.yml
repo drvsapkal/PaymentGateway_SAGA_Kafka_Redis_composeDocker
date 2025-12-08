@@ -1,0 +1,155 @@
+version: '3.9'
+
+services:
+
+  # ===============================
+  # Eureka Service Registry
+  # ===============================
+  eureka-server:
+    image: eureka-server:latest
+    container_name: eureka-server
+    build: ./discovery-server
+    ports:
+      - "8761:8761"
+    networks:
+      - payment-net
+
+  # ===============================
+  # API Gateway
+  # ===============================
+  api-gateway:
+    image: api-gateway:latest
+    container_name: api-gateway
+    build: ./api-gateway
+    depends_on:
+      - eureka-server
+    ports:
+      - "8085:8080"
+    networks:
+      - payment-net
+
+  # ===============================
+  # Redis (Caching for orders & inventory stock)
+  # ===============================
+  redis-cache:
+    image: redis:7-alpine
+    container_name: redis-cache
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - payment-net
+
+  # ===============================
+  # Kafka + Zookeeper (for SAGA events)
+  # ===============================
+  zookeeper:
+    image: confluentinc/cp-zookeeper:latest
+    container_name: zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+    networks:
+      - payment-net
+
+  kafka:
+    image: confluentinc/cp-kafka:latest
+    container_name: kafka-broker
+    depends_on:
+      - zookeeper
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-broker:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka-broker:9093
+      KAFKA_LOG_DIRS: /tmp/kraft-combined-logs
+    ports:
+      - "9092:9092"
+      - "9093:9093"
+    networks:
+      - payment-net
+
+
+  # ===============================
+  # Order Service + MySQL
+  # ===============================
+  order-db:
+    image: mysql:8
+    container_name: order-db
+    restart: always
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://order-db:3306/orderdb?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: orderdb
+    ports:
+      - "3307:3306"
+    networks:
+      - payment-net
+
+  order-service:
+    image: order-service:latest
+    container_name: order-service
+    build: ./order-service
+    depends_on:
+      redis-cache:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+      order-db:
+        condition: service_started
+      eureka-server:
+        condition: service_started
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://order-db:3306/orderdb
+    ports:
+      - "8081:8081"
+    networks:
+      - payment-net
+
+
+# ===============================
+  # Payment Service + MySQL
+  # ===============================
+  payment-db:
+    image: mysql:8
+    container_name: payment-db
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: paymentdb
+    ports:
+      - "3308:3306"
+    networks:
+      - payment-net
+
+  payment-service:
+    image: payment-service:latest
+    container_name: payment-service
+    build: ./payment-service
+    depends_on:
+      - payment-db
+      - kafka
+      - eureka-server
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://payment-db:3306/paymentdb
+    ports:
+      - "8082:8082"
+    networks:
+      - payment-net
+      
+        
+# ===============================
+# NETWORK
+# ===============================
+networks:
+  payment-net:
+    driver: bridge
