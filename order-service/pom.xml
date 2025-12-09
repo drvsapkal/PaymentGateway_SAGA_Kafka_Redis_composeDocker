@@ -65,6 +65,13 @@
 			<groupId>com.fasterxml.jackson.core</groupId>
 			<artifactId>jackson-databind</artifactId>
 		</dependency>
+		
+		<!-- Saga Shared Event -->
+		<dependency>
+			<groupId>com.saga</groupId>
+			<artifactId>saga-shared</artifactId>
+			<version>1.0.0</version>
+		</dependency>
 	</dependencies>
 
 	<dependencyManagement>

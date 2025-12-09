@@ -2,9 +2,13 @@ package com.app.paymentsystem.payment.kafka;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
 
 import com.app.paymentsystem.payment.service.PaymentService;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.saga.events.OrderCreatedEvent;
+import com.saga.events.PaymentResultEvent;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -18,23 +22,38 @@ public class OrderEventConsumer {
 	private final PaymentService paymentService;
     
     @Autowired
-    private final PaymentEventProducer eventProducer;
+    private final KafkaTemplate<String, String> kafkaTemplate;
+    
+    private static final String PAYMENT_RESULT_TOPIC = "payment-result";
+    
 
     @KafkaListener(topics = "order-created", groupId = "payment-service-group")
     public void consumeOrderCreatedEvent(String message) {
-        log.info("Received 'order-created' Kafka event: {}", message);
+    	log.info("Received OrderCreated event: {}", message);
 
-        String[] parts = message.split(",");
-        String transactionId = parts[0];
-        Long orderId = Long.valueOf(parts[1]);
-        Integer amount = Integer.valueOf(parts[2]);
+    	try {
+            ObjectMapper mapper = new ObjectMapper();
+            OrderCreatedEvent event = mapper.readValue(message, OrderCreatedEvent.class);
 
-        boolean paymentStatus = paymentService.processPayment(transactionId, orderId, amount);
+            log.info("Received OrderCreatedEvent → {}", event);
 
-        if (paymentStatus) {
-            eventProducer.sendPaymentSuccess(transactionId, orderId);
-        } else {
-            eventProducer.sendPaymentFailure(transactionId, orderId);
+            boolean success = paymentService.processPayment(
+                    event.getTransactionId(),
+                    event.getOrderId(),
+                    event.getAmount()
+            );
+
+            PaymentResultEvent response = new PaymentResultEvent(
+                    event.getTransactionId(),
+                    event.getOrderId(),
+                    success ? "SUCCESS" : "FAILED"
+            );
+
+            kafkaTemplate.send(PAYMENT_RESULT_TOPIC, event.getTransactionId(), mapper.writeValueAsString(response));
+            log.info("Published PaymentResultEvent → {}", response);
+
+        } catch (Exception ex) {
+            log.error("Error processing OrderCreatedEvent: {}", ex.getMessage());
         }
     }
 }

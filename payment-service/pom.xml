@@ -86,6 +86,14 @@
             <artifactId>spring-kafka-test</artifactId>
             <scope>test</scope>
         </dependency>
+
+		<!-- Saga Shared Event -->
+		<dependency>
+			<groupId>com.saga</groupId>
+			<artifactId>saga-shared</artifactId>
+			<version>1.0.0</version>
+		</dependency>
+
     </dependencies>
 
     <dependencyManagement>
@@ -102,7 +110,7 @@
 
     <build>
         <plugins>
-            <!-- Spring Boot Maven Plugin -->
+			<!-- Spring Boot Maven Plugin -->
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>

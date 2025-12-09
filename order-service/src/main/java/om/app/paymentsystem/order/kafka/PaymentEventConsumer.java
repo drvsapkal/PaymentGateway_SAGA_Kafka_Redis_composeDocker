@@ -5,6 +5,8 @@ import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 
 import com.app.paymentsystem.order.service.OrderService;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.saga.events.PaymentResultEvent;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -16,30 +18,24 @@ public class PaymentEventConsumer {
 
 	@Autowired
     private final OrderService orderService;
+	
+	private final ObjectMapper mapper = new ObjectMapper();
 
     // Listen for payment success
     @KafkaListener(topics = "payment-success", groupId = "order-service-group")
-    public void consumePaymentSuccess(String message) {
-        log.info("Received payment-success event: {}", message);
+    public void consumePaymentResponse(String message) {
 
-        String[] parts = message.split(",");
-        String transactionId = parts[0];
-        Long orderId = Long.valueOf(parts[1]);
+    	try {
+            PaymentResultEvent event = mapper.readValue(message, PaymentResultEvent.class);
 
-        orderService.updateOrderStatus(transactionId, "PAID");
-        log.info("Order status updated to PAID for OrderId={} TxnId={}", orderId, transactionId);
-    }
+            log.info("Received PaymentResult event: {}", event);
 
-    // Listen for payment failure
-    @KafkaListener(topics = "payment-failed", groupId = "order-service-group")
-    public void consumePaymentFailure(String message) {
-        log.info("Received payment-failed event: {}", message);
+            orderService.updateOrderStatus(event.getTransactionId(), event.getStatus());
+            log.info("Order status updated to {}", event.getStatus());
 
-        String[] parts = message.split(",");
-        String transactionId = parts[0];
-        Long orderId = Long.valueOf(parts[1]);
+        } catch (Exception e) {
+            log.error("Failed to process PaymentResultEvent: {}", e.getMessage());
+        }
 
-        orderService.updateOrderStatus(transactionId, "PAYMENT_FAILED");
-        log.info("Order status updated to PAYMENT_FAILED for OrderId={} TxnId={}", orderId, transactionId);
     }
 }

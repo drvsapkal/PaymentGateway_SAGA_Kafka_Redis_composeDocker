@@ -2,16 +2,17 @@ package com.app.paymentsystem.order.service;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.app.paymentsystem.order.dto.OrderRequest;
 import com.app.paymentsystem.order.entity.Order;
 import com.app.paymentsystem.order.repo.OrderRepository;
+import com.saga.events.OrderCreatedEvent;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import om.app.paymentsystem.order.kafka.OrderEventProducer;
 
 @Slf4j
 @Service
@@ -20,12 +21,17 @@ public class OrderService {
 
 	@Autowired
     private final OrderRepository orderRepository;
+
 	@Autowired
     private final RedisTemplate<String, Object> redisTemplate;
-	@Autowired
-    private final KafkaTemplate<String, String> kafkaTemplate;
 
-    private static final String ORDER_CREATED_TOPIC = "order-created";
+	@Autowired
+	OrderEventProducer orderEventProducer;
+	
+	@Autowired
+	OrderCreatedEvent orderEventCreated;
+
+    private static final String ORDER_CREATED_TOPIC = "Order created";
 
     @Transactional
     public Order createOrder(OrderRequest req) {
@@ -43,11 +49,9 @@ public class OrderService {
         redisTemplate.opsForValue().set("order_" + order.getId(), order);
         log.info("Saved Order {} in Redis Cache", order.getId());
         
-        String eventPayload = order.getId() + "," + req.getAmount();
-        kafkaTemplate.send(ORDER_CREATED_TOPIC, req.getTransactionId(), eventPayload);
-        
-        log.info("Published Kafka Event: Topic={}, TxnId={}, Payload={}",
-                ORDER_CREATED_TOPIC, req.getTransactionId(), eventPayload);
+        orderEventProducer.sendOrderCreatedEvent(orderEventCreated);
+        log.info(ORDER_CREATED_TOPIC+" successfully ID={} Txn={}", order.getId(), order.getTransactionId());
+       
         
         return order;
     }

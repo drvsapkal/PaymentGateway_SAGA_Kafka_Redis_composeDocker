@@ -1,0 +1,2 @@
+com\saga\events\PaymentResultEvent.class
+com\saga\events\OrderCreatedEvent.class
