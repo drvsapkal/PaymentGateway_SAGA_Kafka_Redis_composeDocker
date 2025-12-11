@@ -1,6 +1,5 @@
-package om.app.paymentsystem.order.kafka;
+package com.app.paymentsystem.order.kafka;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
 
@@ -16,8 +15,7 @@ public class OrderEventProducer {
 
     private static final String ORDER_CREATED_TOPIC = "order-created";
 
-    @Autowired
-    private final KafkaTemplate<String, String> kafkaTemplate = null;
+    private final KafkaTemplate<String, String> kafkaTemplate;
 
     public void sendOrderCreatedEvent(OrderCreatedEvent event) {
     	

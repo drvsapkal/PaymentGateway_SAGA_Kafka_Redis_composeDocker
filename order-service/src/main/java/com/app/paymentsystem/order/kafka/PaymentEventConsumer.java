@@ -1,6 +1,5 @@
-package om.app.paymentsystem.order.kafka;
+package com.app.paymentsystem.order.kafka;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 
@@ -16,14 +15,15 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 public class PaymentEventConsumer {
 
-	@Autowired
     private final OrderService orderService;
 	
 	private final ObjectMapper mapper = new ObjectMapper();
 
     // Listen for payment success
-    @KafkaListener(topics = "payment-success", groupId = "order-service-group")
+    @KafkaListener(topics = {"payment-success", "payment-failed"}, groupId = "order-service-group")
     public void consumePaymentResponse(String message) {
+    	
+    	log.info("Received payment result message → {}", message);
 
     	try {
             PaymentResultEvent event = mapper.readValue(message, PaymentResultEvent.class);
@@ -31,7 +31,9 @@ public class PaymentEventConsumer {
             log.info("Received PaymentResult event: {}", event);
 
             orderService.updateOrderStatus(event.getTransactionId(), event.getStatus());
-            log.info("Order status updated to {}", event.getStatus());
+            log.info("Updated Order Status: Txn={} → Status={}",
+                    event.getTransactionId(),
+                    event.getStatus());
 
         } catch (Exception e) {
             log.error("Failed to process PaymentResultEvent: {}", e.getMessage());

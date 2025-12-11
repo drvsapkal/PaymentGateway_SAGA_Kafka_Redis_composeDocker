@@ -1,36 +1,29 @@
 package com.app.paymentsystem.order.service;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.app.paymentsystem.order.dto.OrderRequest;
 import com.app.paymentsystem.order.entity.Order;
+import com.app.paymentsystem.order.kafka.OrderEventProducer;
 import com.app.paymentsystem.order.repo.OrderRepository;
 import com.saga.events.OrderCreatedEvent;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import om.app.paymentsystem.order.kafka.OrderEventProducer;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class OrderService {
 
-	@Autowired
     private final OrderRepository orderRepository;
 
-	@Autowired
     private final RedisTemplate<String, Object> redisTemplate;
 
-	@Autowired
-	OrderEventProducer orderEventProducer;
+    private final OrderEventProducer orderEventProducer;
 	
-	@Autowired
-	OrderCreatedEvent orderEventCreated;
-
     private static final String ORDER_CREATED_TOPIC = "Order created";
 
     @Transactional
@@ -48,6 +41,11 @@ public class OrderService {
 
         redisTemplate.opsForValue().set("order_" + order.getId(), order);
         log.info("Saved Order {} in Redis Cache", order.getId());
+
+        OrderCreatedEvent orderEventCreated = new OrderCreatedEvent();
+        orderEventCreated.setTransactionId(order.getTransactionId());
+        orderEventCreated.setAmount(order.getAmount());
+        orderEventCreated.setOrderId(order.getId());
         
         orderEventProducer.sendOrderCreatedEvent(orderEventCreated);
         log.info(ORDER_CREATED_TOPIC+" successfully ID={} Txn={}", order.getId(), order.getTransactionId());
