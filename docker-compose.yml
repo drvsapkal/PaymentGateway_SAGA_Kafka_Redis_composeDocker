@@ -48,7 +48,7 @@ services:
   # Kafka + Zookeeper (for SAGA events)
   # ===============================
   zookeeper:
-    image: confluentinc/cp-zookeeper:latest
+    image: confluentinc/cp-zookeeper:7.5.0
     container_name: zookeeper
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
@@ -59,19 +59,26 @@ services:
       - payment-net
 
   kafka:
-    image: confluentinc/cp-kafka:latest
+    image: confluentinc/cp-kafka:7.5.0
     container_name: kafka-broker
     depends_on:
       - zookeeper
     environment:
       KAFKA_BROKER_ID: 1
-      KAFKA_PROCESS_ROLES: broker,controller
-      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+
+      # Zookeeper cluster
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+
+      # Correct listeners
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-broker:9092
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT
-      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
-      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka-broker:9093
-      KAFKA_LOG_DIRS: /tmp/kraft-combined-logs
+
+      # Enable auto topic creation
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
     ports:
       - "9092:9092"
       - "9093:9093"
@@ -98,7 +105,9 @@ services:
   order-service:
     image: order-service:latest
     container_name: order-service
-    build: ./order-service
+    build:
+      context: .
+      dockerfile: order-service/Dockerfile
     depends_on:
       redis-cache:
         condition: service_healthy
@@ -134,7 +143,9 @@ services:
   payment-service:
     image: payment-service:latest
     container_name: payment-service
-    build: ./payment-service
+    build:
+      context: .
+      dockerfile: payment-service/Dockerfile
     depends_on:
       - payment-db
       - kafka

@@ -20,7 +20,7 @@ public class PaymentEventConsumer {
 	private final ObjectMapper mapper = new ObjectMapper();
 
     // Listen for payment success
-    @KafkaListener(topics = {"payment-success", "payment-failed"}, groupId = "order-service-group")
+    @KafkaListener(topics = "payment-result", groupId = "order-service-group")
     public void consumePaymentResponse(String message) {
     	
     	log.info("Received payment result message → {}", message);

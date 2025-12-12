@@ -1,14 +1,11 @@
 package com.app.paymentsystem.payment.kafka;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.kafka.annotation.KafkaListener;
-import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
 
 import com.app.paymentsystem.payment.service.PaymentService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.saga.events.OrderCreatedEvent;
-import com.saga.events.PaymentResultEvent;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -18,13 +15,9 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 public class OrderEventConsumer {
 
-    @Autowired
 	private final PaymentService paymentService;
     
-    @Autowired
-    private final KafkaTemplate<String, String> kafkaTemplate;
-    
-    private static final String PAYMENT_RESULT_TOPIC = "payment-result";
+	private final PaymentEventProducer paymentEventProducer;
     
 
     @KafkaListener(topics = "order-created", groupId = "payment-service-group")
@@ -43,14 +36,15 @@ public class OrderEventConsumer {
                     event.getAmount()
             );
 
-            PaymentResultEvent response = new PaymentResultEvent(
-                    event.getTransactionId(),
-                    event.getOrderId(),
-                    success ? "SUCCESS" : "FAILED"
-            );
+         // Publish the payment result via PaymentEventProducer
+            if (success) {
+                paymentEventProducer.sendPaymentSuccess(event.getTransactionId(), event.getOrderId());
+            } else {
+                paymentEventProducer.sendPaymentFailure(event.getTransactionId(), event.getOrderId());
+            }
 
-            kafkaTemplate.send(PAYMENT_RESULT_TOPIC, event.getTransactionId(), mapper.writeValueAsString(response));
-            log.info("Published PaymentResultEvent → {}", response);
+            log.info("Processed payment for Txn={} → success={}", event.getTransactionId(), success);
+
 
         } catch (Exception ex) {
             log.error("Error processing OrderCreatedEvent: {}", ex.getMessage());
