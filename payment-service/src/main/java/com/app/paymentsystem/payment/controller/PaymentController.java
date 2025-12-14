@@ -17,15 +17,17 @@ public class PaymentController {
 
     private final PaymentService paymentService;
 
+    //core responsibility of rest api in event-driven saga just for manual test
+    //actual payment must be happen through kafka not Rest
     @PostMapping("/simulate/{transactionId}/{orderId}/{amount}")
     public ResponseEntity<?> simulatePayment(
             @PathVariable String transactionId,
             @PathVariable Long orderId,
             @PathVariable Integer amount) {
 
-        boolean result = paymentService.processPayment(transactionId, orderId, amount);
+        paymentService.processPayment(transactionId, orderId, amount);
 
-        return ResponseEntity.ok(result ? "PAYMENT SUCCESS" : "PAYMENT FAILED");
+        return ResponseEntity.ok("Payment processing triggered");
     }
     
 }

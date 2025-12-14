@@ -16,9 +16,7 @@ import lombok.extern.slf4j.Slf4j;
 public class OrderEventConsumer {
 
 	private final PaymentService paymentService;
-    
-	private final PaymentEventProducer paymentEventProducer;
-    
+        
 
     @KafkaListener(topics = "order-created", groupId = "payment-service-group")
     public void consumeOrderCreatedEvent(String message) {
@@ -30,21 +28,11 @@ public class OrderEventConsumer {
 
             log.info("Received OrderCreatedEvent → {}", event);
 
-            boolean success = paymentService.processPayment(
+            paymentService.processPayment(
                     event.getTransactionId(),
                     event.getOrderId(),
                     event.getAmount()
             );
-
-         // Publish the payment result via PaymentEventProducer
-            if (success) {
-                paymentEventProducer.sendPaymentSuccess(event.getTransactionId(), event.getOrderId());
-            } else {
-                paymentEventProducer.sendPaymentFailure(event.getTransactionId(), event.getOrderId());
-            }
-
-            log.info("Processed payment for Txn={} → success={}", event.getTransactionId(), success);
-
 
         } catch (Exception ex) {
             log.error("Error processing OrderCreatedEvent: {}", ex.getMessage());
