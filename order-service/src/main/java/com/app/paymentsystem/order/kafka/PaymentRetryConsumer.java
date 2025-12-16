@@ -14,22 +14,25 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class PaymentEventConsumer {
+public class PaymentRetryConsumer {
 
-    private final OrderService orderService;
     private final ObjectMapper objectMapper;
-	
+    private final OrderService orderService;
 
-    // Listen for payment success
-    @KafkaListener(topics = "payment-result", groupId = "order-service-group", errorHandler = "kafkaErrorHandler")
-    public void consumePaymentResponse(String message) {
-    	
-    	log.info("Received payment result message → {}", message);
+    @KafkaListener(
+            topics = "payment-result-retry",
+            groupId = "order-service-retry-group",
+            errorHandler = "kafkaErrorHandler"
+    )
+    public void retryPaymentResult(String message) {
 
-    	try {
-    		
-    		PaymentResultEvent event = objectMapper.readValue(message, PaymentResultEvent.class);
-    		if ("SUCCESS".equals(event.getStatus())) {
+        log.warn("Retrying PaymentResultEvent → {}", message);
+
+        try {
+            PaymentResultEvent event =
+                    objectMapper.readValue(message, PaymentResultEvent.class);
+
+            if ("SUCCESS".equals(event.getStatus())) {
                 orderService.updateOrderStatus(
                         event.getTransactionId(),
                         OrderStatus.PAYMENT_SUCCESS
@@ -40,12 +43,10 @@ public class PaymentEventConsumer {
                         OrderStatus.PAYMENT_FAILED
                 );
             }
-    		
-    	}catch(Exception e) {
-            log.error("Failed to process PaymentResultEvent", e);
-            
-            // ✅ IMPORTANT: Wrap checked exception
-            throw new RuntimeException("PaymentResultEvent processing failed", e);
-    	}
+
+        } catch (Exception e) {
+            log.error("Retry failed for PaymentResultEvent", e);
+            throw new RuntimeException("Retry PaymentResultEvent failed", e);// 🔥 After retries → DLQ
+        }
     }
 }

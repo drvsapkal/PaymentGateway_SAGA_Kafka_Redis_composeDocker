@@ -34,7 +34,7 @@ public class OrderService {
     public Order createOrder(OrderRequest req, String idempotencyKey) {
         log.info("Creating order for Customer ID: {}", req.getCustomerId());
         
-        // 1 Idempotency check
+        // 1 Idempotency check (no duplicate order create)
         Optional<Order> existing =
                 orderRepository.findByIdempotencyKey(idempotencyKey);
         
@@ -43,7 +43,7 @@ public class OrderService {
             return existing.get();
         }
         
-      // 2️ Generate transactionId internally
+      // 2️ Generate transactionId internally (to track particular  order everywhere)this is saga ID
         String transactionId = UUID.randomUUID().toString();
 
         Order order = Order.builder()
