@@ -6,6 +6,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -26,20 +27,11 @@ public class OrderController {
     private final OrderService orderService;
 
     @PostMapping("/create")
-    public ResponseEntity<?> createOrder(@RequestBody OrderRequest request) {
-        try {
-            if (request.getAmount() <= 0) {
-                return ResponseEntity.badRequest().body("Amount must be greater than 0");
-            }
-
-            Order order = orderService.createOrder(request);
-            return ResponseEntity.ok(order);
-
-        } catch (Exception ex) {
-            log.error("Order creation failed: {}", ex.getMessage());
-            return ResponseEntity.internalServerError()
-                    .body("Error occurred while creating order: " + ex.getMessage());
-        }
+    public ResponseEntity<?> createOrder(@RequestHeader("Idempotency-Key") String idempotencyKey,
+    									 @RequestBody OrderRequest request) {
+    	 return ResponseEntity.ok(
+                 orderService.createOrder(request, idempotencyKey)
+         );
     }
 
     @GetMapping("/{id}")

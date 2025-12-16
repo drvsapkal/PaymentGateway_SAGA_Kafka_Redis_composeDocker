@@ -15,26 +15,27 @@ import lombok.extern.slf4j.Slf4j;
 public class PaymentEventProducer {
 
     private final KafkaTemplate<String, String> kafkaTemplate;
-    private final ObjectMapper mapper = new ObjectMapper();
+    private final ObjectMapper mapper;
 
     private static final String PAYMENT_RESULT_TOPIC = "payment-result";
 
-    public void sendPaymentSuccess(String transactionId, Long orderId) {
-        publishEvent(transactionId, orderId, "SUCCESS");
+    public void sendPaymentSuccess(String transactionId) {
+        publishEvent(transactionId, "SUCCESS");
     }
 
-    public void sendPaymentFailure(String transactionId, Long orderId) {
-        publishEvent(transactionId, orderId, "FAILED");
+    public void sendPaymentFailure(String transactionId) {
+        publishEvent(transactionId, "FAILED");
     }
 
-    private void publishEvent(String txn, Long orderId, String status) {
+    private void publishEvent(String transactionId, String status) {
         try {
-            PaymentResultEvent event =
-                    new PaymentResultEvent(txn, orderId, status);
+        	PaymentResultEvent event =
+                    new PaymentResultEvent(transactionId, status);
 
             String json = mapper.writeValueAsString(event);
 
-            kafkaTemplate.send(PAYMENT_RESULT_TOPIC, txn, json);
+            //Key = transactionId (for partition consistency)
+            kafkaTemplate.send(PAYMENT_RESULT_TOPIC, transactionId, json);
 
             log.info("Published PaymentResultEvent → Topic={} Payload={}", PAYMENT_RESULT_TOPIC, json);
 

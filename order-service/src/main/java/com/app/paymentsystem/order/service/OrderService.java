@@ -1,9 +1,13 @@
 package com.app.paymentsystem.order.service;
 
+import java.util.Optional;
+import java.util.UUID;
+
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.app.paymentsystem.order.domain.OrderStatus;
 import com.app.paymentsystem.order.dto.OrderRequest;
 import com.app.paymentsystem.order.entity.Order;
 import com.app.paymentsystem.order.kafka.OrderEventProducer;
@@ -27,14 +31,27 @@ public class OrderService {
     private static final String ORDER_CREATED_TOPIC = "Order created";
 
     @Transactional
-    public Order createOrder(OrderRequest req) {
-        log.info("Creating order for Transaction ID: {}", req.getTransactionId());
+    public Order createOrder(OrderRequest req, String idempotencyKey) {
+        log.info("Creating order for Customer ID: {}", req.getCustomerId());
+        
+        // 1 Idempotency check
+        Optional<Order> existing =
+                orderRepository.findByIdempotencyKey(idempotencyKey);
+        
+        if (existing.isPresent()) {
+            log.info("Duplicate request detected → idempotencyKey={}", idempotencyKey);
+            return existing.get();
+        }
+        
+      // 2️ Generate transactionId internally
+        String transactionId = UUID.randomUUID().toString();
 
         Order order = Order.builder()
-                .transactionId(req.getTransactionId())
+                .transactionId(transactionId)
+                .idempotencyKey(idempotencyKey)
                 .customerId(req.getCustomerId())
                 .amount(req.getAmount())
-                .status("CREATED")
+                .status(OrderStatus.CREATED)
                 .build();
 
         order = orderRepository.save(order);
@@ -42,10 +59,12 @@ public class OrderService {
         redisTemplate.opsForValue().set("order_" + order.getId(), order);
         log.info("Saved Order {} in Redis Cache", order.getId());
 
-        OrderCreatedEvent orderEventCreated = new OrderCreatedEvent();
-        orderEventCreated.setTransactionId(order.getTransactionId());
-        orderEventCreated.setAmount(order.getAmount());
-        orderEventCreated.setOrderId(order.getId());
+        // 4️ Publish saga event
+        OrderCreatedEvent orderEventCreated = new OrderCreatedEvent(
+                order.getTransactionId(),
+                order.getId(),
+                order.getAmount()
+        );
         
         orderEventProducer.sendOrderCreatedEvent(orderEventCreated);
         log.info(ORDER_CREATED_TOPIC+" successfully ID={} Txn={}", order.getId(), order.getTransactionId());
@@ -67,12 +86,21 @@ public class OrderService {
                 .orElse(null);
     }
     
-    public void updateOrderStatus(String transactionId, String status) {
-        Order order = orderRepository.findByTransactionId(transactionId);
-        if (order != null) {
-            order.setStatus(status);
-            orderRepository.save(order);
+    @Transactional
+    public void updateOrderStatus(String transactionId, OrderStatus  status) {
+        Order order = orderRepository.findByTransactionId(transactionId)
+        			.orElseThrow(() -> new IllegalStateException("Oder not found"));
+        
+        //IDEMPOTENCY CHECK
+        if (order.getStatus() == status) {
+            log.warn("Duplicate order update ignored for txnId={}", transactionId);
+            return;
         }
+        
+        order.setStatus(status);
+        orderRepository.save(order);
+        
+        log.info("Order {} updated to status={}", transactionId, status);
     }
     
 }

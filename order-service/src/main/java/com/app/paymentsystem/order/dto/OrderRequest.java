@@ -11,7 +11,6 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class OrderRequest {
 
-	private String transactionId;
     private Long customerId;
     private Integer amount;
 

@@ -6,6 +6,7 @@ import org.springframework.stereotype.Component;
 import com.app.paymentsystem.payment.service.PaymentService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.saga.events.OrderCreatedEvent;
+import com.saga.events.PaymentRequestedEvent;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -19,23 +20,20 @@ public class OrderEventConsumer {
         
 
     @KafkaListener(topics = "order-created", groupId = "payment-service-group")
-    public void consumeOrderCreatedEvent(String message) {
+    public void consumeOrderCreatedEvent(String message) throws Exception{
     	log.info("Received OrderCreated event: {}", message);
+    	
+    	OrderCreatedEvent event =
+    	        new ObjectMapper().readValue(message, OrderCreatedEvent.class);
 
-    	try {
-            ObjectMapper mapper = new ObjectMapper();
-            OrderCreatedEvent event = mapper.readValue(message, OrderCreatedEvent.class);
+    	PaymentRequestedEvent paymentEvent =
+                new PaymentRequestedEvent(
+                        event.getTransactionId(),
+                        event.getOrderId(),
+                        event.getAmount()
+                );
 
-            log.info("Received OrderCreatedEvent → {}", event);
-
-            paymentService.processPayment(
-                    event.getTransactionId(),
-                    event.getOrderId(),
-                    event.getAmount()
-            );
-
-        } catch (Exception ex) {
-            log.error("Error processing OrderCreatedEvent: {}", ex.getMessage());
-        }
+    	paymentService.processPayment(paymentEvent);
     }
+ 
 }

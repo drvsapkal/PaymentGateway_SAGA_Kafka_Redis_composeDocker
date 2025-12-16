@@ -5,9 +5,10 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 @Data
-@AllArgsConstructor
 @NoArgsConstructor
-public class PaymentResultEvent {
+@AllArgsConstructor
+public class PaymentRequestedEvent {
     private String transactionId;
-    private String status; // SUCCESS / FAILED
+    private Long orderId;
+    private Integer amount;
 }

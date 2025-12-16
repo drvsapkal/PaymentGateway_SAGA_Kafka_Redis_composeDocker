@@ -5,6 +5,7 @@ import org.springframework.stereotype.Service;
 import com.app.paymentsystem.payment.kafka.PaymentEventProducer;
 import com.app.paymentsystem.payment.model.Payment;
 import com.app.paymentsystem.payment.repo.PaymentRepository;
+import com.saga.events.PaymentRequestedEvent;
 
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -19,42 +20,40 @@ public class PaymentService {
 	private final PaymentEventProducer paymentEventProducer;
 
 	@Transactional
-    public boolean processPayment(String transactionId, Long orderId, Integer amount) {
+    public void processPayment(PaymentRequestedEvent event) {
  
-	   log.info("Processing payment for orderId={}, txnId={}", orderId, transactionId);
+	   log.info("Processing payment for orderId={}, txnId={}", event.getOrderId(), event.getTransactionId());
+	   
+	   String transactionId = event.getTransactionId();
 	       
-       // IDEMPOTENCY CHECK
-       if(paymentRepository.findByTransactionId(transactionId).isPresent()) {
-    	   log.warn("Duplcate payment event ignored for txnId={}",transactionId);
-    	   return true;
-       } 
-       
+	   //  IDEMPOTENCY CHECK
+	    if (paymentRepository.existsByTransactionId(transactionId)) {
+	        log.warn("Duplicate payment event ignored for txnId={}", transactionId);
+	        return;
+	    }
+	    
+	    log.info("Processing payment txnId={} orderId={}",
+	            transactionId, event.getOrderId());
        
         boolean success = Math.random() > 0.3;   // 70% success reference simulation
         
         Payment payment = Payment.builder()
         				.transactionId(transactionId)
-        				.orderId(orderId)
-        				.amount(amount)
+        				.orderId(event.getOrderId())
+        				.amount(event.getAmount())
         				.status(success ? "SUCCESS" : "FAILED")
         				.build();
         
         paymentRepository.save(payment);
 
 //        Publish the payment result via PaymentEventProducer
-//        if (success) {
-//            paymentEventProducer.sendPaymentSuccess(transactionId, orderId);
-//            log.info("Payment SUCCESS for Txn={} → success={}", transactionId, success);
-//        } else {
-//            paymentEventProducer.sendPaymentFailure(transactionId, orderId);
-//            log.warn("Payment FAILED for Txn={} → success={}", transactionId, success);
-//        }
-
-        log.info("Payment {} → TxnId={} OrderId={}", success ? "SUCCESS" : "FAILED",
-                transactionId,
-                orderId);
-        
-        return success;
+        if (success) {
+            paymentEventProducer.sendPaymentSuccess(transactionId);
+            log.info("Payment SUCCESS for Txn={}", transactionId);
+        } else {
+            paymentEventProducer.sendPaymentFailure(transactionId);
+            log.warn("Payment FAILED for Txn={}", transactionId);
+        }
 
     }
     
