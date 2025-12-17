@@ -20,8 +20,10 @@ public class PaymentEventConsumer {
     private final ObjectMapper objectMapper;
 	
 
-    // Listen for payment success
-    @KafkaListener(topics = "payment-result", groupId = "order-service-group", errorHandler = "kafkaErrorHandler")
+    // Listen for payment success 
+    // If this throws exception: retry happens automatically 
+    // after retries → message goes to payment-result.DLT
+    @KafkaListener(topics = "payment-result", groupId = "order-service-group")
     public void consumePaymentResponse(String message) {
     	
     	log.info("Received payment result message → {}", message);
@@ -29,6 +31,11 @@ public class PaymentEventConsumer {
     	try {
     		
     		PaymentResultEvent event = objectMapper.readValue(message, PaymentResultEvent.class);
+    		log.error("🔥 Processing payment-result message at {}", System.currentTimeMillis());
+    		// Force failure for testing retry/DLQ 
+    		if (true) { throw new RuntimeException("FORCE FAILURE"); }
+    		
+    		
     		if ("SUCCESS".equals(event.getStatus())) {
                 orderService.updateOrderStatus(
                         event.getTransactionId(),
@@ -43,9 +50,7 @@ public class PaymentEventConsumer {
     		
     	}catch(Exception e) {
             log.error("Failed to process PaymentResultEvent", e);
-            
-            // ✅ IMPORTANT: Wrap checked exception
-            throw new RuntimeException("PaymentResultEvent processing failed", e);
+            throw new RuntimeException(e); // triggers retry + DLQ
     	}
     }
 }

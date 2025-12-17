@@ -1,5 +1,6 @@
 package com.app.paymentsystem.order.service;
 
+import java.time.LocalDateTime;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -10,8 +11,10 @@ import org.springframework.transaction.annotation.Transactional;
 import com.app.paymentsystem.order.domain.OrderStatus;
 import com.app.paymentsystem.order.dto.OrderRequest;
 import com.app.paymentsystem.order.entity.Order;
-import com.app.paymentsystem.order.kafka.OrderEventProducer;
+import com.app.paymentsystem.order.entity.OutboxEvent;
 import com.app.paymentsystem.order.repo.OrderRepository;
+import com.app.paymentsystem.order.repo.OutboxRepository;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.saga.events.OrderCreatedEvent;
 
 import lombok.RequiredArgsConstructor;
@@ -23,10 +26,12 @@ import lombok.extern.slf4j.Slf4j;
 public class OrderService {
 
     private final OrderRepository orderRepository;
+    
+    private final OutboxRepository outboxRepository;
 
     private final RedisTemplate<String, Object> redisTemplate;
-
-    private final OrderEventProducer orderEventProducer;
+    
+    private final ObjectMapper objectMapper;
 	
     private static final String ORDER_CREATED_TOPIC = "Order created";
 
@@ -51,22 +56,38 @@ public class OrderService {
                 .idempotencyKey(idempotencyKey)
                 .customerId(req.getCustomerId())
                 .amount(req.getAmount())
-                .status(OrderStatus.CREATED)
+                .status(OrderStatus.PAYMENT_PENDING)
                 .build();
 
         order = orderRepository.save(order);
 
-        redisTemplate.opsForValue().set("order_" + order.getId(), order);
+      //4
+   	 	redisTemplate.opsForValue().set("order_" + order.getId(), order);
         log.info("Saved Order {} in Redis Cache", order.getId());
-
-        // 4️ Publish saga event
-        OrderCreatedEvent orderEventCreated = new OrderCreatedEvent(
-                order.getTransactionId(),
-                order.getId(),
-                order.getAmount()
-        );
         
-        orderEventProducer.sendOrderCreatedEvent(orderEventCreated);
+     // 3 CREATE OUTBOX EVENT (SAME TX)
+        
+        try {
+        
+        	OrderCreatedEvent event = new OrderCreatedEvent(transactionId, order.getId(), order.getAmount());
+        	
+        	OutboxEvent outbox = OutboxEvent.builder()
+                    .aggregateType("ORDER")
+                    .aggregateId(transactionId)
+                    .eventType("ORDER_CREATED")
+                    .payload(objectMapper.writeValueAsString(event))
+                    .status("PENDING")
+                    .createdAt(LocalDateTime.now())
+                    .build();
+        	
+        	outboxRepository.save(outbox);
+      
+             
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+
+        
         log.info(ORDER_CREATED_TOPIC+" successfully ID={} Txn={}", order.getId(), order.getTransactionId());
        
         
