@@ -1,0 +1,72 @@
+version: "3.8"
+
+services:
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.12.0
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      # 🔑 VERY IMPORTANT
+      - ES_JAVA_OPTS=-Xms2g -Xmx2g
+    ports:
+      - "9200:9200"
+    mem_limit: 4g
+    cpus: 2.0
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    networks:
+      - payment-net
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.12.0
+    ports:
+      - "5601:5601"
+    depends_on:
+      - elasticsearch
+    mem_limit: 1g
+    cpus: 1.0
+    networks:
+      - payment-net
+
+  fluent-bit:
+    image: fluent/fluent-bit:2.2
+    volumes:
+      - ./fluent-bit.conf:/fluent-bit/etc/fluent-bit.conf
+      - ./parsers.conf:/fluent-bit/etc/parsers.conf
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+    depends_on:
+      - elasticsearch
+    mem_limit: 512m
+    cpus: 0.5
+    networks:
+      - payment-net
+
+  prometheus:
+    image: prom/prometheus
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090"
+    mem_limit: 1g
+    cpus: 1.0
+    networks:
+      - payment-net
+
+  grafana:
+    image: grafana/grafana
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+    mem_limit: 512m
+    cpus: 0.5
+    networks:
+      - payment-net
+
+networks:
+  payment-net:
+    external: true
+    name: paymentgateway_saga_kafka_redis_payment-net

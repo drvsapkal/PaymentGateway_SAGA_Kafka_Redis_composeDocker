@@ -30,6 +30,9 @@ public class OutboxEvent {
     private String aggregateType;
     private String aggregateId;
     private String eventType;
+    
+ // REQUIRED for tracing
+    private String correlationId;
 
     @Lob
     private String payload;

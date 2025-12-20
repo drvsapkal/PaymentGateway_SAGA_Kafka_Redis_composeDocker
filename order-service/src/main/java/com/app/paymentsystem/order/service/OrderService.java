@@ -4,6 +4,7 @@ import java.time.LocalDateTime;
 import java.util.Optional;
 import java.util.UUID;
 
+import org.slf4j.MDC;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -65,7 +66,7 @@ public class OrderService {
    	 	redisTemplate.opsForValue().set("order_" + order.getId(), order);
         log.info("Saved Order {} in Redis Cache", order.getId());
         
-     // 3 CREATE OUTBOX EVENT (SAME TX)
+      //3 CREATE OUTBOX EVENT (SAME TX)
         
         try {
         
@@ -77,6 +78,7 @@ public class OrderService {
                     .eventType("ORDER_CREATED")
                     .payload(objectMapper.writeValueAsString(event))
                     .status("PENDING")
+                    .correlationId(MDC.get("X-Correlation-Id"))
                     .createdAt(LocalDateTime.now())
                     .build();
         	
@@ -117,9 +119,13 @@ public class OrderService {
             log.warn("Duplicate order update ignored for txnId={}", transactionId);
             return;
         }
-        
+     // 1️⃣ Update order state
         order.setStatus(status);
         orderRepository.save(order);
+        
+     // 2️⃣ Compensation actions
+//        releaseInventory(order);
+//        cancelShipment(order);
         
         log.info("Order {} updated to status={}", transactionId, status);
     }

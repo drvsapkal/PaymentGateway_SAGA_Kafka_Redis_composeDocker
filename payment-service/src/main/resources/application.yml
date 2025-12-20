@@ -33,8 +33,7 @@ spring:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.apache.kafka.common.serialization.StringSerializer
     listener:
-      ack-mode: record
-    
+      ack-mode: record  
     
 
 eureka:
@@ -47,3 +46,12 @@ logging:
     root: INFO
     "[org.springframework.kafka]": DEBUG
     "[com.app.paymentsystem.payment]": DEBUG
+    
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    prometheus:
+      enabled: true

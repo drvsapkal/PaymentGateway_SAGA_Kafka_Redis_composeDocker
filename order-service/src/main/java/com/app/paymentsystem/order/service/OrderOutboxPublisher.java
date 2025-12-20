@@ -1,7 +1,9 @@
 package com.app.paymentsystem.order.service;
 
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 
+import org.apache.kafka.clients.producer.ProducerRecord;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -20,6 +22,9 @@ public class OrderOutboxPublisher {
 
     private final OutboxRepository outboxRepository;
     private final KafkaTemplate<String, String> kafkaTemplate;
+    
+    private static final String TOPIC = "order-created";
+    private static final String CORRELATION_ID_HEADER = "X-Correlation-Id";
 
     @Scheduled(fixedDelay = 5000)
     @Transactional
@@ -30,16 +35,31 @@ public class OrderOutboxPublisher {
 
         for (OutboxEvent event : events) {
             try {
-                kafkaTemplate.send(
-                        "order-created",
-                        event.getAggregateId(),
-                        event.getPayload()
-                );
+            	ProducerRecord<String, String> record =
+                        new ProducerRecord<>(TOPIC,
+                                event.getAggregateId(),
+                                event.getPayload());
+
+            	 // correlationId comes from Outbox, NOT MDC
+                if (event.getCorrelationId() != null) {
+                    record.headers().add(
+                            CORRELATION_ID_HEADER,
+                            event.getCorrelationId()
+                                 .getBytes(StandardCharsets.UTF_8)
+                    );
+                }
+                
+
+                kafkaTemplate.send(record);
 
                 event.setStatus("SENT");
                 outboxRepository.save(event);
 
-                log.info("Outbox event SENT → id={}", event.getId());
+                log.info(
+                        "Order Outbox event SENT → id={} correlationId={}",
+                        event.getId(),
+                        event.getCorrelationId()
+                );
 
             } catch (Exception e) {
                 log.error("Outbox publish failed → id={}", event.getId());
@@ -47,4 +67,3 @@ public class OrderOutboxPublisher {
         }
     }
 }
-

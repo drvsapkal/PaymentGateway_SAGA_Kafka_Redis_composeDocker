@@ -1,7 +1,9 @@
 package com.app.paymentsystem.payment.service;
 
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 
+import org.apache.kafka.clients.producer.ProducerRecord;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -32,14 +34,23 @@ public class PaymentOutboxPublisher {
 
         for (OutboxEvent event : events) {
             try {
-                kafkaTemplate.send(
-                        TOPIC,
-                        event.getAggregateId(),
-                        event.getPayload()
-                );
+            	ProducerRecord<String, String> record =
+            	        new ProducerRecord<>(TOPIC, event.getAggregateId(), event.getPayload());
+
+            	record.headers().add(
+            	        "X-Correlation-Id",
+            	        event.getCorrelationId().getBytes(StandardCharsets.UTF_8)
+            	);
+
+            	kafkaTemplate.send(record);
 
                 event.setStatus("SENT");
                 outboxRepository.save(event);
+                log.info(
+                        "Payment Outbox event SENT → id={} correlationId={}",
+                        event.getId(),
+                        event.getCorrelationId()
+                );
 
             } catch (Exception ex) {
                 log.error("Failed to publish event {}", event.getId(), ex);

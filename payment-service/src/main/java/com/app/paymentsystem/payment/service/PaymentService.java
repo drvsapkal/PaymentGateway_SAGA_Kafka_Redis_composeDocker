@@ -2,6 +2,7 @@ package com.app.paymentsystem.payment.service;
 
 import java.time.LocalDateTime;
 
+import org.slf4j.MDC;
 import org.springframework.stereotype.Service;
 
 import com.app.paymentsystem.payment.model.OutboxEvent;
@@ -64,6 +65,7 @@ public class PaymentService {
                     .eventType("PAYMENT_RESULT")
                     .payload(objectMapper.writeValueAsString(resultEvent))
                     .status("NEW")
+                    .correlationId(MDC.get("X-Correlation-Id"))
                     .createdAt(LocalDateTime.now())
                     .build();
 

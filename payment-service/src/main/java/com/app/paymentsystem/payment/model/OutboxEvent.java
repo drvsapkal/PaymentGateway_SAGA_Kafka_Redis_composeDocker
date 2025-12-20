@@ -2,6 +2,7 @@ package com.app.paymentsystem.payment.model;
 
 import java.time.LocalDateTime;
 
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -30,6 +31,8 @@ public class OutboxEvent {
     private String aggregateType;
     private String aggregateId;
     private String eventType;
+    
+    private String correlationId;
 
     @Lob
     private String payload;
