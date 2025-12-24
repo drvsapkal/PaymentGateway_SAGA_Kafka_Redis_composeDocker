@@ -39,6 +39,19 @@
 	    <version>7.4</version>
 	</dependency>
 	
+	<!-- Micrometer Tracing -->
+	<dependency>
+	    <groupId>io.micrometer</groupId>
+	    <artifactId>micrometer-tracing-bridge-brave</artifactId>
+	</dependency>
+	
+	<!-- Zipkin Reporter -->
+	<dependency>
+	    <groupId>io.zipkin.reporter2</groupId>
+	    <artifactId>zipkin-reporter-brave</artifactId>
+	</dependency>
+
+	
     <!-- devtools (optional) -->
     <dependency>
       <groupId>org.springframework.boot</groupId>

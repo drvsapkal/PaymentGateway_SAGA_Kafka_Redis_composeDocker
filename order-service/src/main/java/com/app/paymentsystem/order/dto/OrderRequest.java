@@ -13,5 +13,7 @@ public class OrderRequest {
 
     private Long customerId;
     private Integer amount;
+    private Long productId;
+    private int quantity;
 
 }

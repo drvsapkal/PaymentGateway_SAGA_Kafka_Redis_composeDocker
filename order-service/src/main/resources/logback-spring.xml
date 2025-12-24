@@ -1,30 +1,12 @@
-<?xml version="1.0" encoding="UTF-8"?>
 <configuration>
 
-    <!-- Load Spring property correctly -->
-    <springProperty
-        scope="context"
-        name="SERVICE_NAME"
-        source="spring.application.name"/>
+    <property name="PATTERN"
+        value="%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - [traceId=%X{traceId}] [spanId=%X{spanId}] [correlationId=%X{X-Correlation-Id}] %msg%n"/>
 
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
-
-        <encoder class="net.logstash.logback.encoder.LogstashEncoder">
-
-            <!-- Correct service name -->
-            <customFields>
-                {"service":"${SERVICE_NAME}"}
-            </customFields>
-
-            <!-- Include MDC (correlationId, etc.) -->
-            <includeMdc>true</includeMdc>
-
-            <fieldNames>
-                <mdc>mdc</mdc>
-            </fieldNames>
-
+        <encoder>
+            <pattern>${PATTERN}</pattern>
         </encoder>
-
     </appender>
 
     <root level="INFO">

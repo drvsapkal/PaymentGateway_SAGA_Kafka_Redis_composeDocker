@@ -9,6 +9,7 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.app.paymentsystem.order.client.InventoryClient;
 import com.app.paymentsystem.order.domain.OrderStatus;
 import com.app.paymentsystem.order.dto.OrderRequest;
 import com.app.paymentsystem.order.entity.Order;
@@ -18,6 +19,7 @@ import com.app.paymentsystem.order.repo.OutboxRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.saga.events.OrderCreatedEvent;
 
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -33,6 +35,8 @@ public class OrderService {
     private final RedisTemplate<String, Object> redisTemplate;
     
     private final ObjectMapper objectMapper;
+    
+    private final InventoryClient inventoryClient;
 	
     private static final String ORDER_CREATED_TOPIC = "Order created";
 
@@ -57,10 +61,23 @@ public class OrderService {
                 .idempotencyKey(idempotencyKey)
                 .customerId(req.getCustomerId())
                 .amount(req.getAmount())
-                .status(OrderStatus.PAYMENT_PENDING)
+                .status(OrderStatus.CREATED)
                 .build();
 
         order = orderRepository.save(order);
+        
+      // IMMEDIATE INVENTORY CALL (SYNC)
+        boolean reserved = reserveInventory(req.getProductId(), req.getQuantity()); 
+        
+        if (!reserved) {
+            order.setStatus(OrderStatus.FAILED);
+            orderRepository.save(order);
+            throw new RuntimeException("Out of stock");
+        }
+        
+      // Inventory success → allow payment
+        order.setStatus(OrderStatus.PAYMENT_PENDING);
+        orderRepository.save(order);
 
       //4
    	 	redisTemplate.opsForValue().set("order_" + order.getId(), order);
@@ -121,13 +138,32 @@ public class OrderService {
         }
      // 1️⃣ Update order state
         order.setStatus(status);
-        orderRepository.save(order);
+        orderRepository.save(order);	// Optimistic lock happens here
         
-     // 2️⃣ Compensation actions
+     // 2️⃣ CACHE EVICTION (MANDATORY)
+        redisTemplate.delete("order_" + order.getId());
+        
+     // 3 Compensation actions
 //        releaseInventory(order);
 //        cancelShipment(order);
         
         log.info("Order {} updated to status={}", transactionId, status);
     }
-    
+  
+    @CircuitBreaker(name = "inventoryService", fallbackMethod = "inventoryFallback")
+    	public boolean reserveInventory(Long productId, int quantity) {
+    	    return inventoryClient.reserve(productId, quantity);
+    	}
+
+    public boolean inventoryFallback(
+            Long productId,
+            int quantity,
+            Throwable ex) {
+
+        log.error("Inventory service unavailable", ex);
+
+        // Business decision:
+        return false; // treat as OUT OF STOCK
+    }
+
 }

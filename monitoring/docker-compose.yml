@@ -66,7 +66,18 @@ services:
     networks:
       - payment-net
 
+  zipkin:
+    image: openzipkin/zipkin
+    container_name: zipkin
+    ports:
+      - "9411:9411"
+    mem_limit: 512m # limit memory usage to 512 MB 
+    cpus: 0.5 # limit CPU usage to half a core
+    networks:
+      - payment-net
+
+
 networks:
   payment-net:
     external: true
-    name: paymentgateway_saga_kafka_redis_payment-net
+    name: paymentgateway_saga_kafka_redis_payment-net   #foldername_payment-net
