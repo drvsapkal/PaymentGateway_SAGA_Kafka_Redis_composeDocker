@@ -1,0 +1,55 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: api-gateway
+
+  cloud:
+    gateway:
+      discovery:
+        locator:
+          enabled: true
+          lower-case-service-id: true
+
+      routes:
+        - id: order-service
+          uri: lb://order-service
+          predicates:
+            - Path=/order/**
+        - id: payment-service
+          uri: lb://payment-service
+          predicates:
+            - Path=/payment/**
+        - id: inventory-service
+          uri: lb://inventory-service
+          predicates:
+            - Path=/inventory/**
+        - id: wallet-service
+          uri: lb://wallet-service
+          predicates:
+            - Path=/wallet/**
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://eureka-server:8761/eureka/
+      
+      
+management:       
+  tracing:
+    sampling:
+      probability: 1.0   # 100% traces (dev only)
+  zipkin:
+    tracing:
+      endpoint: http://zipkin:9411/api/v2/spans
+      
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  
+  endpoint:
+    prometheus:
+      enabled: true
+

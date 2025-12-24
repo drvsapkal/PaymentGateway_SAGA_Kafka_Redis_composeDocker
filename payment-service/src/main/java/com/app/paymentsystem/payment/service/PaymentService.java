@@ -64,7 +64,7 @@ public class PaymentService {
                     .aggregateId(payment.getTransactionId()) //Required Payment Id here if possible
                     .eventType("PAYMENT_RESULT")
                     .payload(objectMapper.writeValueAsString(resultEvent))
-                    .status("NEW")
+                    .status("NEW") //  waiting to be published
                     .correlationId(MDC.get("X-Correlation-Id"))
                     .createdAt(LocalDateTime.now())
                     .build();

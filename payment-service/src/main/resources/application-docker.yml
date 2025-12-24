@@ -32,22 +32,30 @@ spring:
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.apache.kafka.common.serialization.StringSerializer
-    listener:
-      ack-mode: record  
-    
+      
 
 eureka:
   client:
     service-url:
       defaultZone: http://eureka-server:8761/eureka/
 
-logging:
-  level:
-    root: INFO
-    "[org.springframework.kafka]": DEBUG
-    "[com.app.paymentsystem.payment]": DEBUG
+logging: 
+  level: 
+    root: INFO 
+    "[org.springframework.kafka]": WARN # reduce Kafka noise 
+    "[com.app.paymentsystem.payment]": DEBUG # keep your business logs visible 
+    "[org.springframework.cloud.netflix.eureka]": WARN # reduce Eureka heartbeat chatter 
+    "[org.hibernate]": WARN
     
 management:
+  tracing:
+    enabled: true
+    sampling:
+      probability: 1.0   # 100% traces (dev only)
+  zipkin:
+    tracing:
+      endpoint: http://zipkin:9411/api/v2/spans
+      
   endpoints:
     web:
       exposure:

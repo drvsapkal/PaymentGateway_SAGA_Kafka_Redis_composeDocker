@@ -4,6 +4,7 @@ import java.nio.charset.StandardCharsets;
 
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.slf4j.MDC;
+import org.springframework.context.annotation.Profile;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 
@@ -15,6 +16,7 @@ import com.saga.events.PaymentResultEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
+@Profile("docker")
 @Slf4j
 @Component
 @RequiredArgsConstructor
@@ -43,13 +45,11 @@ public class PaymentEventConsumer {
 	                    StandardCharsets.UTF_8
 	            );
 	            MDC.put(CORRELATION_ID_HEADER, correlationId);
-	        }
-    	
-    	
+	        } 	
     		
     		PaymentResultEvent event = objectMapper.readValue(record.value(), PaymentResultEvent.class);
     		
-//    		log.error("🔥 Processing payment-result message at {}", System.currentTimeMillis());
+//    		log.error("Processing payment-result message at {}", System.currentTimeMillis());
 //    		// Force failure for testing retry/DLQ 
 //    		if (true) { throw new RuntimeException("FORCE FAILURE"); }
 //    		
